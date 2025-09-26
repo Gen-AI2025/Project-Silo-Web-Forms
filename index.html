@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nexus</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#ffffff; --ink:#151924; --muted:#6b7280; --primary:#2563eb; --primary-ink:#fff; --ring:#dbe3ff; --border:#e5e7eb; --success:#059669; --danger:#dc2626;
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; background:var(--bg); color:var(--ink)}
+    header{position:sticky; top:0; z-index:10; background:linear-gradient(180deg,#fff,rgba(255,255,255,.92)); border-bottom:1px solid var(--border); backdrop-filter:saturate(1.2) blur(6px)}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px 20px}
+    .brand{display:flex; gap:12px; align-items:center}
+    .logo{width:38px;height:38px;border-radius:10px;background:#111827;color:#fff;display:grid;place-items:center;font-weight:800;letter-spacing:.5px}
+    .brand-title{font-weight:700; letter-spacing:.4px}
+    .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+    .tab{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#fff; cursor:pointer; font-weight:600; color:#111827}
+    .tab[aria-selected="true"]{background:var(--primary); color:var(--primary-ink); border-color:transparent}
+
+    main{padding:28px 20px}
+    .grid{max-width:1100px;margin:0 auto; display:grid; grid-template-columns:1fr; gap:20px}
+
+    .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 15px 35px rgba(24,35,58,.06); padding:22px}
+    .card h2{margin:0 0 14px 0; font-size:22px}
+    .muted{color:var(--muted); font-size:13px}
+
+    .row{display:grid; grid-template-columns:1fr; gap:14px; margin-bottom:14px}
+    .row.two{grid-template-columns:1fr 1fr}
+    .row.three{grid-template-columns:repeat(3,1fr)}
+
+    label{font-size:12px; font-weight:600; margin-bottom:6px; display:block}
+    .input, select, textarea{width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; color:#ink; font-size:13px; outline:none}
+    .input:focus, select:focus, textarea:focus{border-color:var(--primary); box-shadow:0 0 0 4px var(--ring)}
+
+    .readonly{background:#fafafa; color:#4b5563}
+
+    .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:10px}
+    .btn{appearance:none; border:1px solid var(--border); background:#fff; color:#111827; padding:10px 16px; border-radius:12px; font-weight:700; cursor:pointer}
+    .btn.primary{background:var(--primary); color:var(--primary-ink); border-color:transparent}
+    .btn:disabled{opacity:.6; cursor:not-allowed}
+
+    .toast{position:fixed; right:18px; bottom:18px; background:#111827; color:#fff; padding:12px 14px; border-radius:12px; font-weight:600; box-shadow:0 10px 24px rgba(0,0,0,.18); opacity:0; transform:translateY(8px); transition:.3s}
+    .toast.show{opacity:1; transform:translateY(0)}
+
+    /* Map placeholder */
+    .map-wrap{border:1px solid var(--border); border-radius:12px; overflow:hidden; background:#f3f4f6}
+    #map{width:100%; height:360px; display:block}
+    .map-controls{display:flex; gap:10px; align-items:center; padding:8px 0}
+    .map-controls label{margin:0}
+    .map-help{display:flex; justify-content:space-between; font-size:12px; color:#6b7280; padding:8px 2px}
+    #coords{font-variant-numeric: tabular-nums;}
+
+    .hint{font-size:12px; color:#6b7280}
+
+    @media (max-width:760px){
+      .row.two, .row.three{grid-template-columns:1fr}
+    }
+  </style>
+  <!-- Leaflet + Esri Leaflet + Draw -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/esri-leaflet@3.0.11/dist/esri-leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/esri-leaflet-geocoder@3.1.4/dist/esri-leaflet-geocoder.css"/>
+  <script src="https://unpkg.com/esri-leaflet-geocoder@3.1.4/dist/esri-leaflet-geocoder.js"></script>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo" aria-label="Nexus Logo">NX</div>
+        <div>
+          <div class="brand-title">Nexus</div>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="client">Add Client</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="region">Add Region</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="project">Add Project</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="site">Add Site</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid">
+      <!-- CLIENT FORM -->
+      <form id="form-client" class="card" data-panel="client">
+        <h2>Add Client</h2>
+        <div class="row">
+          <div>
+            <label for="clientName">Name</label>
+            <input id="clientName" class="input" placeholder="e.g., Apex Utilities" required />
+          </div>
+          <div>
+            <label for="clientEmail">Email</label>
+            <input id="clientEmail" type="email" class="input" placeholder="name@company.com" required />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" onclick="resetForm('client')">Cancel</button>
+          <button class="btn primary">Save</button>
+        </div>
+      </form>
+
+      <!-- REGION FORM -->
+      <form id="form-region" class="card" data-panel="region" hidden>
+        <h2>Add Region</h2>
+        <p class="hint">Linked Client is auto-selected from your latest client. You can change it.</p>
+        <div class="row">
+          <div>
+            <label for="regionClient">Client</label>
+            <select id="regionClient" required class="input"></select>
+          </div>
+          <div>
+            <label for="regionName">Name</label>
+            <input id="regionName" class="input" placeholder="e.g., North District" required />
+          </div>
+          <div>
+            <label for="regionManager">Manager/Client Contact</label>
+            <input id="regionManager" class="input" placeholder="Full name or email" required />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" onclick="resetForm('region')">Cancel</button>
+          <button class="btn primary">Save</button>
+        </div>
+      </form>
+
+      <!-- PROJECT FORM -->
+      <form id="form-project" class="card" data-panel="project" hidden>
+        <h2>Add Project</h2>
+        <div class="row">
+          <div class="map-wrap" style="grid-column:1/-1">
+            <label class="muted" style="padding:8px 0; display:block">Location — ESRI Map (draw polygon)</label>
+            <div class="map-controls">
+              <label for="basemapSelect" class="muted">Basemap:</label>
+              <select id="basemapSelect" class="input" style="max-width:220px">
+                <option value="Topographic">Topographic</option>
+                <option value="Streets">Streets</option>
+                <option value="Imagery">Imagery</option>
+                <option value="Oceans">Oceans</option>
+                <option value="Gray">Gray</option>
+                <option value="DarkGray">Dark Gray</option>
+                <option value="NationalGeographic">National Geographic</option>
+              </select>
+            </div>
+            <div id="map"></div>
+            <div class="map-help"><span>Use the polygon tool to draw the project area.</span><span id="coords">Lat, Lng</span></div>
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="projectClient">Client</label>
+            <select id="projectClient" required class="input"></select>
+          </div>
+          <div>
+            <label for="projectRegion">Region</label>
+            <select id="projectRegion" required class="input"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="projectName">Project Name</label>
+            <input id="projectName" class="input" placeholder="e.g., Anode Bed Retrofit – Zone 7" required />
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="po">PO/TRF/Client Number</label>
+            <input id="po" class="input" placeholder="e.g., PO-78432" />
+          </div>
+          <div>
+            <label for="nexusNum">Nexus Project Number</label>
+            <input id="nexusNum" class="input" placeholder="e.g., 2025-001" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="workType">Project Type / Work Type</label>
+            <input id="workType" class="input" placeholder="e.g., Deep Well Anodes" />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" onclick="resetForm('project')">Cancel</button>
+          <button class="btn primary">Save</button>
+        </div>
+      </form>
+
+      <!-- SITE FORM -->
+      <form id="form-site" class="card" data-panel="site" hidden>
+        <h2>Add Site</h2>
+        <div class="row two">
+          <div>
+            <label>Client (inherited)</label>
+            <input id="siteClient" class="input readonly" readonly />
+          </div>
+          <div>
+            <label>Region (inherited)</label>
+            <input id="siteRegion" class="input readonly" readonly />
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label>Project Name (inherited)</label>
+            <input id="siteProjectName" class="input readonly" readonly />
+          </div>
+          <div>
+            <label>PO/TRF/Client Number (inherited)</label>
+            <input id="sitePO" class="input readonly" readonly />
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="siteNexusNum">Nexus Project Number</label>
+            <select id="siteNexusNum" class="input"></select>
+          </div>
+          <div>
+            <label>Project Type / Work Type (inherited)</label>
+            <input id="siteWorkType" class="input readonly" readonly />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="locationDesc">Location Name / # / Desc</label>
+            <input id="locationDesc" class="input" placeholder="e.g., Site 12 – East Access" />
+          </div>
+        </div>
+        <div class="row three">
+          <div>
+            <label for="startDate">Scheduled Start Date</label>
+            <input id="startDate" type="date" class="input" />
+          </div>
+          <div>
+            <label for="daysPlanned">Days Planned on Site</label>
+            <input id="daysPlanned" type="number" min="0" class="input" placeholder="e.g., 5" />
+          </div>
+          <div>
+            <label for="radius811">811 Radius (m)</label>
+            <input id="radius811" type="number" min="0" class="input" placeholder="e.g., 50" />
+          </div>
+        </div>
+        <div class="row two">
+          <div>
+            <label for="ref811">811 Reference Number</label>
+            <input id="ref811" class="input" placeholder="e.g., 811-45672" />
+          </div>
+          <div>
+            <label for="exp811">811 Expiration Date</label>
+            <input id="exp811" type="date" class="input" />
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" onclick="resetForm('site')">Cancel</button>
+          <button class="btn primary">Save</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+  // Simple in-memory store + persistence via localStorage
+  const store = {
+    clients: [],    // {id,name,email}
+    regions: [],    // {id,clientId,name,manager}
+    projects: [],   // {id,clientId,regionId,name,po,nexusNum,workType,polygon}
+    sites: []       // {id, projectId, nexusNum, ...}
+  };
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2200); };
+
+  function uid(){return Math.random().toString(36).slice(2,9)}
+
+  function saveStore(){ localStorage.setItem('nexusForms', JSON.stringify(store)); }
+  function loadStore(){
+    const raw = localStorage.getItem('nexusForms');
+    if(raw){ try{ const obj = JSON.parse(raw); ['clients','regions','projects','sites'].forEach(k=> store[k] = obj[k] || [] ); }catch(e){} }
+  }
+
+  function refreshOptions(){
+    // Region form client select
+    const regionClient = $('#regionClient');
+    regionClient.innerHTML = store.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    if(store.clients.length) regionClient.value = store.clients.at(-1).id; // latest client
+
+    // Project client select
+    const projectClient = $('#projectClient');
+    projectClient.innerHTML = store.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    if(store.clients.length) projectClient.value = store.clients.at(-1).id;
+    refreshRegionsForProject();
+
+    // Site nexus dropdown from projects
+    const siteNexus = $('#siteNexusNum');
+    siteNexus.innerHTML = store.projects.map(p=>`<option value="${p.id}">${p.nexusNum || '(no nexus #)'} – ${p.name}</option>`).join('');
+    if(store.projects.length){ siteNexus.value = store.projects.at(-1).id; onSiteProjectChange(); }
+  }
+
+  function refreshRegionsForProject(){
+    const clientId = $('#projectClient').value;
+    const options = store.regions.filter(r=> r.clientId === clientId);
+    const sel = $('#projectRegion');
+    sel.innerHTML = options.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+    if(options.length) sel.value = options.at(-1).id;
+  }
+
+  // Tab handling
+  $$('.tab').forEach(btn=> btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    $$('.tab').forEach(b=> b.setAttribute('aria-selected', String(b===btn)));
+    $('[data-panel]:not([hidden])')?.setAttribute('hidden','');
+    $(`[data-panel="${tab}"]`).removeAttribute('hidden');
+    if(tab==='project') refreshRegionsForProject();
+    if(tab==='site') refreshOptions();
+  }));
+
+  // CLIENT FORM SUBMIT
+  $('#form-client').addEventListener('submit', e=>{
+    e.preventDefault();
+    const name = $('#clientName').value.trim();
+    const email = $('#clientEmail').value.trim();
+    if(!name) return toast('Client name is required');
+    const id = uid();
+    store.clients.push({id,name,email});
+    saveStore(); refreshOptions(); resetForm('client');
+    toast('Client saved');
+  });
+
+  // REGION FORM SUBMIT
+  $('#form-region').addEventListener('submit', e=>{
+    e.preventDefault();
+    if(!store.clients.length) return toast('Create a Client first');
+    const id = uid();
+    store.regions.push({
+      id,
+      clientId: $('#regionClient').value,
+      name: $('#regionName').value.trim(),
+      manager: $('#regionManager').value.trim()
+    });
+    saveStore(); refreshOptions(); resetForm('region');
+    toast('Region saved');
+  });
+
+  // PROJECT FORM SUBMIT
+  $('#form-project').addEventListener('submit', e=>{
+    e.preventDefault();
+    if(!store.clients.length) return toast('Create a Client first');
+    const id = uid();
+    store.projects.push({
+      id,
+      clientId: $('#projectClient').value,
+      regionId: $('#projectRegion').value,
+      name: $('#projectName').value.trim(),
+      po: $('#po').value.trim(),
+      nexusNum: $('#nexusNum').value.trim(),
+      workType: $('#workType').value.trim(),
+      polygon: polygonGeoJSON
+    });
+    saveStore(); refreshOptions(); resetForm('project');
+    toast('Project saved');
+  });
+
+  // SITE FORM SUBMIT
+  $('#form-site').addEventListener('submit', e=>{
+    e.preventDefault();
+    if(!store.projects.length) return toast('Create a Project first');
+    const project = store.projects.find(p=> p.id === $('#siteNexusNum').value);
+    const id = uid();
+    store.sites.push({
+      id,
+      projectId: project.id,
+      nexusNum: project.nexusNum,
+      locationDesc: $('#locationDesc').value.trim(),
+      startDate: $('#startDate').value,
+      days: $('#daysPlanned').value,
+      radius811: $('#radius811').value,
+      ref811: $('#ref811').value,
+      exp811: $('#exp811').value
+    });
+    saveStore(); resetForm('site');
+    toast('Site saved');
+  });
+
+  function resetForm(which){
+    const form = document.getElementById(`form-${which}`);
+    form.reset?.();
+    if(which==='project') clearPolygon();
+    if(which==='site'){ if(store.projects.length){ $('#siteNexusNum').value = store.projects.at(-1).id; onSiteProjectChange(); }}
+  }
+
+  // When Site form selects a project (via Nexus # dropdown), auto-populate inherited fields
+  $('#siteNexusNum').addEventListener('change', onSiteProjectChange);
+  function onSiteProjectChange(){
+    const pId = $('#siteNexusNum').value;
+    const p = store.projects.find(x=> x.id===pId);
+    if(!p) return;
+    const client = store.clients.find(c=> c.id===p.clientId);
+    const region = store.regions.find(r=> r.id===p.regionId);
+    $('#siteClient').value = client?.name || '';
+    $('#siteRegion').value = region?.name || '';
+    $('#siteProjectName').value = p?.name || '';
+    $('#sitePO').value = p?.po || '';
+    $('#siteWorkType').value = p?.workType || '';
+  }
+
+  // ESRI Leaflet map + draw + geosearch + basemap switcher
+  let polygonGeoJSON = null;
+  let map, drawnItems, drawControl, baseLayer, searchControl, resultsLayer;
+
+  function setBasemap(name){
+    if(baseLayer){ map.removeLayer(baseLayer); }
+    baseLayer = L.esri.basemapLayer(name);
+    baseLayer.addTo(map);
+  }
+
+  function initMap(){
+    map = L.map('map').setView([20.5937, 78.9629], 5);
+    setBasemap('Topographic');
+
+    // Scale
+    L.control.scale().addTo(map);
+
+    // Drawn features group
+    drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    // Draw controls
+    drawControl = new L.Control.Draw({
+      draw: { polyline:false, rectangle:false, circle:false, circlemarker:false, marker:false, polygon: { showArea:true } },
+      edit: { featureGroup: drawnItems }
+    });
+    map.addControl(drawControl);
+
+    // Geosearch
+    resultsLayer = L.layerGroup().addTo(map);
+    searchControl = L.esri.Geocoding.geosearch({ expanded: true, zoomToResult: true }).addTo(map);
+    searchControl.on('results', (data)=>{
+      resultsLayer.clearLayers();
+      data.results.forEach(r=> L.marker(r.latlng).addTo(resultsLayer));
+    });
+
+    // Handle created/edited shapes
+    map.on(L.Draw.Event.CREATED, function (e) {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(e.layer);
+      polygonGeoJSON = e.layer.toGeoJSON();
+    });
+    map.on(L.Draw.Event.EDITED, function(){
+      const layer = drawnItems.getLayers()[0];
+      if(layer) polygonGeoJSON = layer.toGeoJSON();
+    });
+
+    // Mouse coords
+    map.on('mousemove', (e)=>{ document.getElementById('coords').textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`; });
+
+    // Basemap select
+    document.getElementById('basemapSelect').addEventListener('change', (ev)=> setBasemap(ev.target.value));
+  }
+  function clearPolygon(){ drawnItems?.clearLayers(); polygonGeoJSON = null; }
+
+  // Init
+  loadStore(); refreshOptions(); onSiteProjectChange();
+  setTimeout(initMap, 0);
+</script>
+</body>
+</html>
